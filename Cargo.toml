@@ -1,0 +1,21 @@
+[package]
+name = "plonky2_keccak"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
+starky = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
+hex = "0.4.3"
+rand = "0.8.5"
+anyhow = "1.0.82"
+itertools = "0.12.1"
+hashbrown = "0.14.5"
+env_logger = "0.11.3"
+log = "0.4.21"
+tiny-keccak = "2.0.2"
+
+[features]
+not-constrain-keccak = []
