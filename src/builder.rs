@@ -99,7 +99,7 @@ mod tests {
             .map(|input| {
                 input
                     .iter()
-                    .map(|v| builder.constant(F::from_canonical_u32(*v)))
+                    .map(|_| builder.add_virtual_target())
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -108,12 +108,18 @@ mod tests {
             .map(|input_t| builder.keccak256::<C>(input_t))
             .collect::<Vec<_>>();
         let mut pw = PartialWitness::new();
+        for (input_t, input) in inputs_t.iter().zip(inputs.iter()) {
+            for (t, w) in input_t.iter().zip(input.iter()) {
+                pw.set_target(*t, F::from_canonical_u32(*w));
+            }
+        }
         for (ouput_t, output) in outputs_t.iter().zip(expected_outputs.iter()) {
             for (t, w) in ouput_t.iter().zip(output.iter()) {
                 pw.set_target(*t, F::from_canonical_u32(*w));
             }
         }
         let circuit = builder.build::<C>();
+        dbg!(&circuit.verifier_only.circuit_digest);
         circuit.prove(pw).unwrap();
     }
 }

@@ -31,7 +31,10 @@ pub(crate) fn sum_ctl_values<F: RichField>(
     ctl_values: &HashMap<usize, Vec<Vec<F>>>,
 ) -> HashMap<usize, Vec<F>> {
     let mut sums = HashMap::new();
-    for (index, extra_looking_values) in ctl_values {
+    let mut ctl_indices: Vec<_> = ctl_values.keys().collect();
+    ctl_indices.sort(); // Sort to ensure deterministic order
+    for index in ctl_indices {
+        let extra_looking_values = ctl_values.get(index).unwrap();
         let mut sum = vec![F::ZERO; num_challenges];
         for i in 0..num_challenges {
             for value in extra_looking_values {
@@ -50,7 +53,10 @@ pub(crate) fn sum_ctl_values_circuit<F: RichField + Extendable<D>, const D: usiz
     ctl_values: &HashMap<usize, Vec<Vec<Target>>>,
 ) -> HashMap<usize, Vec<Target>> {
     let mut sums = HashMap::new();
-    for (index, extra_looking_values) in ctl_values {
+    let mut ctl_indices: Vec<_> = ctl_values.keys().collect();
+    ctl_indices.sort(); // Sort to ensure deterministic order
+    for index in ctl_indices {
+        let extra_looking_values = ctl_values.get(index).unwrap();
         let mut sum = vec![builder.zero(); num_challenges];
         for i in 0..num_challenges {
             for value in extra_looking_values {
