@@ -1,0 +1,170 @@
+0a1,27
+> /*
+> MIT License
+> 
+> Copyright (c) Polygon Zero
+> 
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+> 
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+> 
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+> 
+> ---
+> Original source: https://github.com/0xPolygonZero/zk_evm
+> */
+> 
+4,23c31,42
+< use plonky2::field::extension::{Extendable, FieldExtension};
+< use plonky2::field::packed::PackedField;
+< use plonky2::field::polynomial::PolynomialValues;
+< use plonky2::field::types::Field;
+< use plonky2::hash::hash_types::RichField;
+< use plonky2::iop::ext_target::ExtensionTarget;
+< use plonky2::plonk::plonk_common::reduce_with_powers_ext_circuit;
+< use plonky2::timed;
+< use plonky2::util::timing::TimingTree;
+< use starky::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+< use starky::evaluation_frame::StarkEvaluationFrame;
+< use starky::lookup::{Column, Filter};
+< use starky::stark::Stark;
+< use starky::util::trace_rows_to_poly_values;
+< 
+< use super::columns::reg_input_limb;
+< use crate::all_stark::EvmStarkFrame;
+< use crate::keccak::columns::{
+<     reg_a, reg_a_prime, reg_a_prime_prime, reg_a_prime_prime_0_0_bit, reg_a_prime_prime_prime,
+<     reg_b, reg_c, reg_c_prime, reg_output_limb, reg_step, NUM_COLUMNS, TIMESTAMP,
+---
+> use plonky2::{
+>     field::{
+>         extension::{Extendable, FieldExtension},
+>         packed::PackedField,
+>         polynomial::PolynomialValues,
+>         types::Field,
+>     },
+>     hash::hash_types::RichField,
+>     iop::ext_target::ExtensionTarget,
+>     plonk::plonk_common::reduce_with_powers_ext_circuit,
+>     timed,
+>     util::timing::TimingTree,
+25,27c44,49
+< use crate::keccak::constants::{rc_value, rc_value_bit};
+< use crate::keccak::logic::{
+<     andn, andn_gen, andn_gen_circuit, xor, xor3_gen, xor3_gen_circuit, xor_gen, xor_gen_circuit,
+---
+> use starky::{
+>     constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer},
+>     evaluation_frame::{StarkEvaluationFrame, StarkFrame},
+>     lookup::{Column, Filter},
+>     stark::Stark,
+>     util::trace_rows_to_poly_values,
+29d50
+< use crate::keccak::round_flags::{eval_round_flags, eval_round_flags_recursively};
+30a52,64
+> use super::{
+>     columns::{
+>         reg_a, reg_a_prime, reg_a_prime_prime, reg_a_prime_prime_0_0_bit, reg_a_prime_prime_prime,
+>         reg_b, reg_c, reg_c_prime, reg_input_limb, reg_output_limb, reg_step, NUM_COLUMNS,
+>         TIMESTAMP,
+>     },
+>     constants::{rc_value, rc_value_bit},
+>     logic::{
+>         andn, andn_gen, andn_gen_circuit, xor, xor3_gen, xor3_gen_circuit, xor_gen, xor_gen_circuit,
+>     },
+>     round_flags::{eval_round_flags, eval_round_flags_recursively},
+> };
+> 
+66a101,104
+>     pub(crate) fn new() -> Self {
+>         Self { f: PhantomData }
+>     }
+> 
+258c296
+<     type EvaluationFrame<FE, P, const D2: usize> = EvmStarkFrame<P, FE, NUM_COLUMNS>
+---
+>     type EvaluationFrame<FE, P, const D2: usize> = StarkFrame<P, FE, NUM_COLUMNS, 0>
+263c301
+<     type EvaluationFrameTarget = EvmStarkFrame<ExtensionTarget<D>, ExtensionTarget<D>, NUM_COLUMNS>;
+---
+>     type EvaluationFrameTarget = StarkFrame<ExtensionTarget<D>, ExtensionTarget<D>, NUM_COLUMNS, 0>;
+617,624c655,668
+<     use plonky2::field::types::PrimeField64;
+<     use plonky2::fri::oracle::PolynomialBatch;
+<     use plonky2::iop::challenger::Challenger;
+<     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+<     use starky::config::StarkConfig;
+<     use starky::cross_table_lookup::{CtlData, CtlZData};
+<     use starky::lookup::{GrandProductChallenge, GrandProductChallengeSet};
+<     use starky::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
+---
+>     use plonky2::{
+>         field::types::PrimeField64,
+>         fri::oracle::PolynomialBatch,
+>         iop::challenger::Challenger,
+>         plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
+>     };
+>     use starky::{
+>         config::StarkConfig,
+>         cross_table_lookup::{CtlData, CtlZData},
+>         lookup::{GrandProductChallenge, GrandProductChallengeSet},
+>         proof::StarkProofWithMetadata,
+>         prover::prove_with_commitment,
+>         stark_testing::{test_stark_circuit_constraints, test_stark_low_degree},
+>     };
+628d671
+<     use crate::prover::prove_single_table;
+703c746
+<             (0..NUM_PERMS).map(|_| (rand::random(), 0)).collect();
+---
+>             (0..NUM_PERMS).map(|i| (rand::random(), i)).collect();
+754d796
+<             None,
+763a806,840
+> 
+>     fn prove_single_table<F, C, S, const D: usize>(
+>         stark: &S,
+>         config: &StarkConfig,
+>         trace_poly_values: &[PolynomialValues<F>],
+>         trace_commitment: &PolynomialBatch<F, C, D>,
+>         ctl_data: &CtlData<F>,
+>         ctl_challenges: &GrandProductChallengeSet<F>,
+>         challenger: &mut Challenger<F, C::Hasher>,
+>         timing: &mut TimingTree,
+>     ) -> Result<StarkProofWithMetadata<F, C, D>>
+>     where
+>         F: RichField + Extendable<D>,
+>         C: GenericConfig<D, F = F>,
+>         S: Stark<F, D>,
+>     {
+>         // Clear buffered outputs.
+>         let init_challenger_state = challenger.compact();
+> 
+>         prove_with_commitment(
+>             stark,
+>             config,
+>             trace_poly_values,
+>             trace_commitment,
+>             Some(ctl_data),
+>             Some(ctl_challenges),
+>             challenger,
+>             &[],
+>             timing,
+>         )
+>         .map(|proof_with_pis| StarkProofWithMetadata {
+>             proof: proof_with_pis.proof,
+>             init_challenger_state,
+>         })
+>     }
