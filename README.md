@@ -8,7 +8,7 @@
 This is a circuit gadget for plonky2 that calculates keccak256 compliant with Solidity.
 It combines multiple permutations of keccak256 and proves them with starky.
 
-# Usage
+## Usage
 
 ```rust
 let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::default());
