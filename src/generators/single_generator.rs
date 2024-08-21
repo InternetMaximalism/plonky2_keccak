@@ -7,12 +7,13 @@ use plonky2::{
         witness::{PartitionWitness, Witness as _, WitnessWrite as _},
     },
     plonk::circuit_data::CommonCircuitData,
+    util::serialization::{Read, Write},
 };
 
 use crate::{utils::solidity_keccak256, U32Target};
 
-#[derive(Clone, Debug)]
-pub(crate) struct Keccak256SingleGenerator {
+#[derive(Clone, Debug, Default)]
+pub struct Keccak256SingleGenerator {
     pub(crate) input: Vec<U32Target>,
     pub(crate) output: [U32Target; 8],
 }
@@ -21,7 +22,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     for Keccak256SingleGenerator
 {
     fn id(&self) -> String {
-        "Keccak256MockGenerator".to_string()
+        "Keccak256SingleGenerator".to_string()
     }
 
     fn dependencies(&self) -> Vec<Target> {
@@ -44,16 +45,22 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
 
     fn serialize(
         &self,
-        _dst: &mut Vec<u8>,
+        dst: &mut Vec<u8>,
         _data: &CommonCircuitData<F, D>,
     ) -> plonky2::util::serialization::IoResult<()> {
-        unimplemented!()
+        dst.write_target_vec(&self.input)?;
+        dst.write_target_array(&self.output)?;
+
+        Ok(())
     }
 
     fn deserialize(
-        _src: &mut plonky2::util::serialization::Buffer,
+        src: &mut plonky2::util::serialization::Buffer,
         _data: &CommonCircuitData<F, D>,
     ) -> plonky2::util::serialization::IoResult<Self> {
-        unimplemented!()
+        let input = src.read_target_vec().unwrap();
+        let output = src.read_target_array::<8>().unwrap();
+
+        Ok(Self { input, output })
     }
 }

@@ -1,7 +1,9 @@
 use hashbrown::HashMap;
 use plonky2::{
     field::extension::Extendable,
-    hash::hash_types::RichField,
+    fri::proof::FriProofTarget,
+    gadgets::polynomial::PolynomialCoeffsExtTarget,
+    hash::hash_types::{MerkleCapTarget, RichField},
     iop::{
         generator::{GeneratedValues, SimpleGenerator},
         target::Target,
@@ -12,10 +14,15 @@ use plonky2::{
         circuit_data::CommonCircuitData,
         config::{AlgebraicHasher, GenericConfig},
     },
-    util::timing::TimingTree,
+    util::{
+        serialization::{Read, Write},
+        timing::TimingTree,
+    },
 };
 use starky::{
-    config::StarkConfig, proof::StarkProofTarget, recursive_verifier::set_stark_proof_target,
+    config::StarkConfig,
+    proof::{StarkOpeningSetTarget, StarkProofTarget},
+    recursive_verifier::set_stark_proof_target,
 };
 
 use crate::{
@@ -30,8 +37,8 @@ use crate::{
     utils::{solidity_keccak256_with_perm_io, BLOCK_SIZE},
 };
 
-#[derive(Debug)]
-pub(crate) struct Keccak256StarkProofGenerator<
+#[derive(Debug, Clone)]
+pub struct Keccak256StarkProofGenerator<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
@@ -42,6 +49,41 @@ pub(crate) struct Keccak256StarkProofGenerator<
     pub(crate) stark_proof: StarkProofTarget<D>,
     pub(crate) zero: Target, // used for set_stark_proof_target
     _config: std::marker::PhantomData<C>,
+}
+
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> Default
+    for Keccak256StarkProofGenerator<F, C, D>
+{
+    fn default() -> Self {
+        let stark_proof = StarkProofTarget {
+            trace_cap: MerkleCapTarget(vec![]),
+            auxiliary_polys_cap: None,
+            quotient_polys_cap: None,
+            openings: StarkOpeningSetTarget {
+                local_values: vec![],
+                next_values: vec![],
+                auxiliary_polys: None,
+                auxiliary_polys_next: None,
+                ctl_zs_first: None,
+                quotient_polys: None,
+            },
+            opening_proof: FriProofTarget {
+                commit_phase_merkle_caps: vec![],
+                query_round_proofs: vec![],
+                final_poly: PolynomialCoeffsExtTarget(vec![]),
+                pow_witness: Target::default(),
+            },
+        };
+
+        Self {
+            inputs: Default::default(),
+            outputs: Default::default(),
+            extra_looking_values: Default::default(),
+            stark_proof,
+            zero: Default::default(),
+            _config: Default::default(),
+        }
+    }
 }
 
 impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
@@ -235,17 +277,76 @@ where
 
     fn serialize(
         &self,
-        _dst: &mut Vec<u8>,
+        dst: &mut Vec<u8>,
         _data: &CommonCircuitData<F, D>,
     ) -> plonky2::util::serialization::IoResult<()> {
-        unimplemented!()
+        // implement this
+        dst.write_usize(self.inputs.len())?;
+        for input in self.inputs.iter() {
+            dst.write_target_vec(&input)?;
+        }
+
+        dst.write_usize(self.outputs.len())?;
+        for output in self.outputs.iter() {
+            dst.write_target_array(output)?;
+        }
+
+        dst.write_usize(self.extra_looking_values.len())?;
+        for (key, values) in self.extra_looking_values.iter() {
+            dst.write_usize(*key)?;
+            dst.write_usize(values.len())?;
+            for value in values.iter() {
+                dst.write_target_vec(value)?;
+            }
+        }
+
+        self.stark_proof.to_buffer(dst)?;
+        dst.write_target(self.zero)?;
+
+        Ok(())
     }
 
     fn deserialize(
-        _src: &mut plonky2::util::serialization::Buffer,
+        src: &mut plonky2::util::serialization::Buffer,
         _data: &CommonCircuitData<F, D>,
     ) -> plonky2::util::serialization::IoResult<Self> {
-        unimplemented!()
+        let input_len = src.read_usize().unwrap();
+        let mut inputs = Vec::with_capacity(input_len);
+        for _ in 0..input_len {
+            let input = src.read_target_vec()?;
+            inputs.push(input);
+        }
+
+        let output_len = src.read_usize().unwrap();
+        let mut outputs = Vec::with_capacity(output_len);
+        for _ in 0..output_len {
+            let output = src.read_target_array::<8>().unwrap();
+            outputs.push(output);
+        }
+
+        let extra_looking_values_len = src.read_usize().unwrap();
+        let mut extra_looking_values = HashMap::new();
+        for _ in 0..extra_looking_values_len {
+            let key = src.read_usize()?;
+            let value_len = src.read_usize()?;
+            let mut values = vec![];
+            for _ in 0..value_len {
+                values.push(src.read_target_vec()?);
+            }
+            extra_looking_values.insert(key, values);
+        }
+
+        let stark_proof = StarkProofTarget::from_buffer(src).unwrap();
+        let zero = src.read_target().unwrap();
+
+        Ok(Self {
+            inputs,
+            outputs,
+            extra_looking_values,
+            stark_proof,
+            zero,
+            _config: std::marker::PhantomData,
+        })
     }
 }
 
