@@ -47,7 +47,7 @@ pub trait BuilderKeccak256<F: RichField + Extendable<D>, const D: usize> {
 
 #### KeccakHook
 
-Manages the integration between circuit building and STARK proof generation:
+Manages the integration between circuit building and STARK proof generation. Hook is a feature for introducing additional constraints during circuit build time and is a feature of the plonky2 fork:
 
 ```rust
 pub struct KeccakHook<F, C, const D: usize> {
