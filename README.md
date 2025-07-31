@@ -168,26 +168,6 @@ let circuit = builder.build::<C>();
 let proof = circuit.prove(pw).unwrap();
 ```
 
-## Implementation Details
-
-### Solidity Compatibility
-
-The implementation follows Solidity's Keccak256 specification:
-
-- Uses big-endian byte ordering for input and output
-- Applies standard Keccak padding (0x01 suffix + 0x80 at end)
-- Processes data in 136-byte blocks (1088 bits)
-- Returns 256-bit hash as 8 x 32-bit words
-
-### STARK Proof System
-
-The library uses STARK proofs to verify Keccak256 computations:
-
-1. **Permutation Tracking**: Records all Keccak-f permutation inputs and outputs
-2. **Constraint Generation**: Creates polynomial constraints for the Keccak round function
-3. **Batch Proving**: Combines multiple hash computations into a single STARK proof
-4. **Circuit Integration**: Connects STARK proof verification to Plonky2 constraints
-
 ### Block Processing
 
 - **Block Size**: 136 bytes (34 x 32-bit words) per Keccak block
