@@ -11,9 +11,14 @@ use starky::{
     config::StarkConfig,
     cross_table_lookup::{get_ctl_data, CrossTableLookup, TableWithColumns},
     proof::StarkProofWithMetadata,
-    prover::prove_with_commitment,
     stark::Stark,
 };
+#[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
+use starky::prover::prove_with_commitment;
+#[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+use starky::prover::prove_with_commitment_async;
+#[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+use futures::executor::block_on;
 
 use super::keccak_stark::{
     ctl_data_inputs, ctl_data_outputs, ctl_filter_inputs, ctl_filter_outputs,
@@ -44,6 +49,22 @@ where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
 {
+    #[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+    let trace_commitment = {
+        log::info!("keccak_stark::prover::prove -> building trace commitment (async)");
+        let commitment = block_on(PolynomialBatch::<F, C, D>::from_values_async(
+            trace.to_vec(),
+            config.fri_config.rate_bits,
+            false,
+            config.fri_config.cap_height,
+            timing,
+            None,
+        ));
+        log::info!("keccak_stark::prover::prove -> trace commitment ready");
+        commitment
+    };
+
+    #[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
     let trace_commitment = PolynomialBatch::<F, C, D>::from_values(
         trace.to_vec(),
         config.fri_config.rate_bits,
@@ -68,6 +89,25 @@ where
     );
 
     let init_challenger_state = challenger.compact();
+    #[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+    let proof = {
+        log::info!("keccak_stark::prover::prove -> proving with commitment (async)");
+        let result = block_on(prove_with_commitment_async(
+            stark,
+            config,
+            trace,
+            &trace_commitment,
+            Some(&ctl_data[0]),
+            Some(&ctl_challenges),
+            &mut challenger,
+            public_inputs,
+            timing,
+        ))?;
+        log::info!("keccak_stark::prover::prove -> proof ready");
+        result
+    };
+
+    #[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
     let proof = prove_with_commitment(
         stark,
         config,

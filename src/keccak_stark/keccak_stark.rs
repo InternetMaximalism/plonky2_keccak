@@ -658,6 +658,7 @@ mod tests {
         iop::challenger::Challenger,
         plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
     };
+    use futures::executor::block_on;
     use starky::{
         config::StarkConfig,
         cross_table_lookup::{CtlData, CtlZData},
@@ -666,6 +667,8 @@ mod tests {
         prover::prove_with_commitment,
         stark_testing::{test_stark_circuit_constraints, test_stark_low_degree},
     };
+    #[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+    use starky::prover::prove_with_commitment_async;
     use tiny_keccak::keccakf;
 
     use super::*;
@@ -822,7 +825,26 @@ mod tests {
         // Clear buffered outputs.
         let init_challenger_state = challenger.compact();
 
-        prove_with_commitment(
+        #[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+        let proof_with_pis = {
+            log::info!("keccak_stark::prove_single_table -> proving with commitment (async)");
+            let proof = block_on(prove_with_commitment_async(
+                stark,
+                config,
+                trace_poly_values,
+                trace_commitment,
+                Some(ctl_data),
+                Some(ctl_challenges),
+                challenger,
+                &[],
+                timing,
+            ))?;
+            log::info!("keccak_stark::prove_single_table -> proof ready");
+            proof
+        };
+
+        #[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
+        let proof_with_pis = prove_with_commitment(
             stark,
             config,
             trace_poly_values,
@@ -832,8 +854,9 @@ mod tests {
             challenger,
             &[],
             timing,
-        )
-        .map(|proof_with_pis| StarkProofWithMetadata {
+        )?;
+
+        Ok(StarkProofWithMetadata {
             proof: proof_with_pis.proof,
             init_challenger_state,
         })
