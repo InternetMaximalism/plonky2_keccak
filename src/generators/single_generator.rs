@@ -30,7 +30,11 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     }
 
     // NOTICE: not generate constraints for the hash
-    fn run_once(&self, pw: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+    fn run_once(
+        &self,
+        pw: &PartitionWitness<F>,
+        out_buffer: &mut GeneratedValues<F>,
+    ) -> anyhow::Result<()> {
         let input = self
             .input
             .iter()
@@ -39,8 +43,9 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
         let output = solidity_keccak256(&input);
         assert_eq!(self.output.len(), output.len());
         for (target, witness) in self.output.iter().zip(output) {
-            out_buffer.set_target(*target, F::from_canonical_u32(witness));
+            out_buffer.set_target(*target, F::from_canonical_u32(witness))?;
         }
+        Ok(())
     }
 
     fn serialize(
