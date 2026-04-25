@@ -52,30 +52,39 @@ where
     let ctl_challenges = get_grand_product_challenge_set(&mut challenger, config.num_challenges);
 
     let num_lookup_columns = stark.num_lookup_helper_columns(config);
-    let (_, _, num_helpers_by_ctl) = CrossTableLookup::num_ctl_helpers_zs_all(
+    let (total_num_helpers, _, num_helpers_by_ctl) = CrossTableLookup::num_ctl_helpers_zs_all(
         cross_table_lookups,
         0,
         config.num_challenges,
         stark.constraint_degree(),
     );
-    let num_helper_ctl_columns = num_helpers_by_ctl
-        .into_iter()
-        .map(|x| [x])
-        .collect::<Vec<_>>();
-    let ctl_vars_per_table = CtlCheckVars::from_proofs(
-        &[proof.clone()],
+    // plonky2 1.x: `CtlCheckVars::from_proofs` (multi-proof) was replaced by
+    // `CtlCheckVars::from_proof` (single proof) per-stark, taking the per-CTL
+    // helper-column counts directly.
+    let ctl_vars = CtlCheckVars::from_proof(
+        0,
+        &proof.proof,
         cross_table_lookups,
         &ctl_challenges,
-        &[num_lookup_columns],
-        &num_helper_ctl_columns,
+        num_lookup_columns,
+        total_num_helpers,
+        &num_helpers_by_ctl,
     );
-    let ctl_vars = ctl_vars_per_table[0].clone();
 
     challenger.compact();
-    let stark_challenges =
-        proof
-            .proof
-            .get_challenges(&mut challenger, Some(&ctl_challenges), true, config);
+    // plonky2 1.x: `StarkProof::get_challenges` now takes (stark,
+    // public_inputs, challenger, ctl_challenges, ctl_vars, ignore_trace_cap,
+    // config, verifier_circuit_fri_params).
+    let stark_challenges = proof.proof.get_challenges(
+        stark,
+        public_inputs,
+        &mut challenger,
+        Some(&ctl_challenges),
+        Some(&ctl_vars),
+        true,
+        config,
+        None,
+    );
 
     verify_stark_proof_with_challenges(
         stark,
@@ -149,14 +158,23 @@ where
         total_num_helpers,
         &num_helpers_by_ctl,
     );
-    let challenges = stark_proof_target.get_challenges::<F, C>(
+    // plonky2 1.x: `StarkProofTarget::get_challenges` now takes (builder,
+    // stark, public_inputs, challenger, ctl_challenges, ctl_vars,
+    // degree_bits, ignore_trace_cap, config).
+    let challenges = stark_proof_target.get_challenges::<F, C, S>(
         builder,
+        stark,
+        &stark_proof_with_pi_target.public_inputs,
         &mut challenger,
         Some(&ctl_challenges),
+        Some(&ctl_vars),
+        degree_bits,
         true,
         config,
     );
     challenger.compact(builder);
+    // plonky2 1.x: `verify_stark_proof_with_challenges_circuit` now takes two
+    // extra trailing args (`degree_bits`, `min_degree_bits_to_support`).
     verify_stark_proof_with_challenges_circuit::<F, C, _, D>(
         builder,
         stark,
@@ -165,6 +183,8 @@ where
         challenges,
         Some(&ctl_vars),
         config,
+        degree_bits,
+        None,
     );
 
     let extra_looking_sums = sum_ctl_values_circuit(
@@ -288,7 +308,15 @@ mod tests {
         );
         let zero = builder.zero();
         let mut pw = PartialWitness::new();
-        set_stark_proof_target(&mut pw, &proof_t.proof, &proof.proof, zero);
+        // plonky2 1.x: set_stark_proof_target takes the proof's degree_bits.
+        set_stark_proof_target(
+            &mut pw,
+            &proof_t.proof,
+            &proof.proof,
+            degree_bits,
+            zero,
+        )
+        .unwrap();
         set_ctl_values_target(&mut pw, &e_target, &e);
         let circuit = builder.build::<C>();
         let circuit_proof = circuit.prove(pw).unwrap();

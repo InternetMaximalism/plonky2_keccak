@@ -68,6 +68,18 @@ where
     );
 
     let init_challenger_state = challenger.compact();
+    // plonky2 1.x: `prove_with_commitment` no longer observes the `config`
+    // (the standalone `prove` does it before the trace_cap). For multi-STARK
+    // with provided ctl_challenges we have to mirror the verifier's
+    // `StarkProof::get_challenges` which calls `config.observe` as its very
+    // first step (see starky::get_challenges::get_challenges). Without this
+    // observation, prover and verifier transcripts diverge and FRI rejects
+    // the proof with a "Mismatch between evaluation and opening of quotient
+    // polynomial" error.
+    config.observe(&mut challenger);
+    // plonky2 1.x: prove_with_commitment grew two extra args
+    // (final_poly_coeff_len, max_num_query_steps) for verifier-circuit FRI
+    // pinning. We don't pin to a specific verifier circuit here, so pass None.
     let proof = prove_with_commitment(
         stark,
         config,
@@ -77,6 +89,8 @@ where
         Some(&ctl_challenges),
         &mut challenger,
         public_inputs,
+        None,
+        None,
         timing,
     )?;
     let proof_with_metadata = StarkProofWithMetadata {

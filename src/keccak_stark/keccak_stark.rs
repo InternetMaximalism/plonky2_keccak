@@ -831,6 +831,9 @@ mod tests {
             Some(ctl_challenges),
             challenger,
             &[],
+            // plonky2 1.x: extra (final_poly_coeff_len, max_num_query_steps).
+            None,
+            None,
             timing,
         )
         .map(|proof_with_pis| StarkProofWithMetadata {

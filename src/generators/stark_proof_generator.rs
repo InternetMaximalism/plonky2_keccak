@@ -73,6 +73,8 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> D
                 final_poly: PolynomialCoeffsExtTarget(vec![]),
                 pow_witness: Target::default(),
             },
+            // plonky2 1.x: StarkProofTarget gained a `degree_bits` Target.
+            degree_bits: Target::default(),
         };
 
         Self {
@@ -177,7 +179,7 @@ where
             .collect::<Vec<_>>()
     }
 
-    fn run_once(&self, pw: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+    fn run_once(&self, pw: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) -> anyhow::Result<()> {
         let num_perms: usize = self
             .inputs
             .iter()
@@ -267,13 +269,23 @@ where
             &extra_looking_values,
         )
         .unwrap();
-        set_stark_proof_target(out_buffer, &self.stark_proof, &stark_proof.proof, self.zero);
+        // plonky2 1.x: set_stark_proof_target takes the stark proof's
+        // degree_bits as a separate arg (was inferred from FRI before).
+        let degree_bits = stark_proof.proof.recover_degree_bits(&config);
+        set_stark_proof_target(
+            out_buffer,
+            &self.stark_proof,
+            &stark_proof.proof,
+            degree_bits,
+            self.zero,
+        )?;
         set_ctl_values_target(
             out_buffer,
             &self.extra_looking_values,
             &extra_looking_values,
         );
-    }
+            Ok(())
+}
 
     fn serialize(
         &self,
