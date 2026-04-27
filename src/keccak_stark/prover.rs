@@ -11,9 +11,14 @@ use starky::{
     config::StarkConfig,
     cross_table_lookup::{get_ctl_data, CrossTableLookup, TableWithColumns},
     proof::StarkProofWithMetadata,
-    prover::prove_with_commitment,
     stark::Stark,
 };
+#[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
+use starky::prover::prove_with_commitment;
+#[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+use starky::prover::prove_with_commitment_async;
+#[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+use futures::executor::block_on;
 
 use super::keccak_stark::{
     ctl_data_inputs, ctl_data_outputs, ctl_filter_inputs, ctl_filter_outputs,
@@ -80,6 +85,25 @@ where
     // plonky2 1.x: prove_with_commitment grew two extra args
     // (final_poly_coeff_len, max_num_query_steps) for verifier-circuit FRI
     // pinning. We don't pin to a specific verifier circuit here, so pass None.
+    //
+    // wasm32 + gpu_merkle: starky's sync `prove_with_commitment` panics; the
+    // async variant resolves via wgpu's blocking queue poll inside a Web
+    // Worker, so `block_on` is safe in that environment.
+    #[cfg(all(feature = "gpu_merkle", target_arch = "wasm32"))]
+    let proof = block_on(prove_with_commitment_async(
+        stark,
+        config,
+        trace,
+        &trace_commitment,
+        Some(&ctl_data[0]),
+        Some(&ctl_challenges),
+        &mut challenger,
+        public_inputs,
+        None,
+        None,
+        timing,
+    ))?;
+    #[cfg(not(all(feature = "gpu_merkle", target_arch = "wasm32")))]
     let proof = prove_with_commitment(
         stark,
         config,

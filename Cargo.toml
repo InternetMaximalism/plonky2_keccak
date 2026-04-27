@@ -16,6 +16,14 @@ hashbrown = "0.14.5"
 env_logger = "0.11.3"
 log = "0.4.21"
 tiny-keccak = "2.0.2"
+futures = { version = "0.3", optional = true }
 
 [features]
 not-constrain-keccak = []
+# Bridges the sync `SimpleGenerator::run_once` to starky's async
+# `prove_with_commitment_async` via `futures::executor::block_on`. Required when
+# the host enables `starky/gpu_merkle` on `wasm32` — otherwise starky's sync
+# `prove_with_commitment` panics ("Stark prover must be awaited on wasm with
+# gpu_merkle enabled"). On native or without `starky/gpu_merkle`, the sync path
+# is used as before.
+gpu_merkle = ["dep:futures"]
